@@ -3,6 +3,8 @@ package main
 import (
 	"bubble/api"
 	"bubble/internal/config"
+	"bubble/internal/i18n"
+	"bubble/pkg/aicli"
 	"log"
 	"time"
 
@@ -12,12 +14,27 @@ import (
 func main() {
 	// 加载配置
 	if err := config.LoadConfig(); err != nil {
-		log.Printf("Failed to load config: %v\n", err)
+		log.Printf(i18n.T("config_load_failed")+" %v\n", err)
 		return
 	}
 
+	// 语言已经在LoadConfig中设置，不需要重复设置
+
 	// 启动配置文件监视器，每5秒检查一次
-	go config.StartConfigWatcher(5 * time.Second)
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			err, modified := config.CheckAndReload()
+			if err != nil {
+				log.Printf(i18n.T("config_reload_failed"), err)
+			} else if modified {
+				// 配置文件重载成功，重置不可用列表
+				aicli.ResetUnavailableLists()
+			}
+		}
+	}()
 
 	r := gin.Default()
 	r.GET("/", func(c *gin.Context) {

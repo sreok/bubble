@@ -2,6 +2,7 @@ package api
 
 import (
 	"bubble/internal/config"
+	"bubble/internal/i18n"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -24,9 +25,10 @@ import (
 // @Router /models [get]
 func GetModels(c *gin.Context) {
 	// 检查配置文件是否变化并重新加载
-	if err := config.CheckAndReload(); err != nil {
+	err, _ := config.CheckAndReload()
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to reload config",
+			"error": i18n.T("config_modified_reload"),
 		})
 		return
 	}

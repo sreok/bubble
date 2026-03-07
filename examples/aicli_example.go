@@ -42,28 +42,28 @@ func selectProviderAndModel() (*config.ProviderConfig, *config.ModelConfig, erro
 // 选择供应商
 func selectProvider() (*config.ProviderConfig, error) {
 	// 优先使用主供应商
-	primaryProviderName := config.AppConfig.Models.Primary
-	if primaryProviderName != "" {
+	defaultProviderName := config.AppConfig.Models.Default
+	if defaultProviderName != "" {
 		// 查找主供应商
 		for i := range config.AppConfig.Models.Providers {
 			provider := &config.AppConfig.Models.Providers[i]
-			if provider.Name == primaryProviderName && provider.Enable && provider.APIKey != "" {
+			if provider.Name == defaultProviderName && provider.Enable && provider.APIKey != "" {
 				return provider, nil
 			}
 		}
 
-		// 主供应商不存在或未启用，如果启用了故障转移，尝试其他供应商
+		// 默认供应商不存在或未启用，如果启用了故障转移，尝试其他供应商
 		if config.AppConfig.Models.Failover {
 			for i := range config.AppConfig.Models.Providers {
 				provider := &config.AppConfig.Models.Providers[i]
-				if provider.Enable && provider.APIKey != "" && provider.Name != primaryProviderName {
-					log.Printf("Primary provider %s not available, switching to %s\n", primaryProviderName, provider.Name)
+				if provider.Enable && provider.APIKey != "" && provider.Name != defaultProviderName {
+					log.Printf("Default provider %s not available, switching to %s\n", defaultProviderName, provider.Name)
 					return provider, nil
 				}
 			}
 		}
 	} else {
-		// 没有指定主供应商，使用第一个启用的供应商
+		// 没有指定默认供应商，使用第一个启用的供应商
 		for i := range config.AppConfig.Models.Providers {
 			provider := &config.AppConfig.Models.Providers[i]
 			if provider.Enable && provider.APIKey != "" {
@@ -79,20 +79,20 @@ func selectProvider() (*config.ProviderConfig, error) {
 // 选择模型
 func selectModel(provider *config.ProviderConfig) (*config.ModelConfig, error) {
 	// 优先使用主模型
-	primaryModelName := provider.Primary
-	if primaryModelName != "" {
+	defaultModelName := provider.Default
+	if defaultModelName != "" {
 		// 查找主模型
 		for i := range provider.Models {
 			model := &provider.Models[i]
-			if model.ID == primaryModelName {
+			if model.ID == defaultModelName {
 				return model, nil
 			}
 		}
 
-		// 主模型不存在，如果启用了故障转移，尝试其他模型
+		// 默认模型不存在，如果启用了故障转移，尝试其他模型
 		if provider.Failover && len(provider.Models) > 0 {
 			firstModel := &provider.Models[0]
-			log.Printf("Primary model %s not available, switching to %s\n", primaryModelName, firstModel.ID)
+			log.Printf("Default model %s not available, switching to %s\n", defaultModelName, firstModel.ID)
 			return firstModel, nil
 		}
 	} else if len(provider.Models) > 0 {

@@ -2,6 +2,7 @@ package aicli
 
 import (
 	"bubble/internal/config"
+	"bubble/internal/i18n"
 	"context"
 	"errors"
 	"fmt"
@@ -28,14 +29,8 @@ type Client struct {
 // 加载配置文件
 func loadConfig() error {
 	if err := config.LoadConfig(); err != nil {
-		log.Fatalf("Failed to load config: %v\n", err)
+		log.Fatalf(i18n.T("failed_to_load_config")+" %v\n", err)
 	}
-
-	// 检查 Providers 是否为空
-	if len(config.AppConfig.Models.Providers) == 0 {
-		log.Fatalf("No providers found in config\n")
-	}
-
 	return nil
 }
 
@@ -301,35 +296,35 @@ func (c *Client) uploadFiles(ctx context.Context, files []string) ([]string, err
 }
 
 // 创建 AI 客户端
-func createClient(provider *config.ProviderConfig, model *config.ModelConfig) (*Client, error) {
-	var client *Client
-	var err error
+// func createClient(provider *config.ProviderConfig, model *config.ModelConfig) (*Client, error) {
+// 	var client *Client
+// 	var err error
 
-	if provider.BaseURL != "" {
-		// 使用自定义 base URL
-		client, err = NewClient(
-			provider.APIKey,
-			WithBaseURL(provider.BaseURL),
-			WithModel(model.ID),
-			WithEnableContext(),
-			WithInitialRole(GenericRoleDescCN),
-		)
-	} else {
-		// 使用默认 base URL
-		client, err = NewClient(
-			provider.APIKey,
-			WithModel(model.ID),
-			WithEnableContext(),
-			WithInitialRole(GenericRoleDescCN),
-		)
-	}
+// 	if provider.BaseURL != "" {
+// 		// 使用自定义 base URL
+// 		client, err = NewClient(
+// 			provider.APIKey,
+// 			WithBaseURL(provider.BaseURL),
+// 			WithModel(model.ID),
+// 			WithEnableContext(),
+// 			WithInitialRole(GenericRoleDescCN),
+// 		)
+// 	} else {
+// 		// 使用默认 base URL
+// 		client, err = NewClient(
+// 			provider.APIKey,
+// 			WithModel(model.ID),
+// 			WithEnableContext(),
+// 			WithInitialRole(GenericRoleDescCN),
+// 		)
+// 	}
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to create AI client: %w", err)
-	}
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to create AI client: %w", err)
+// 	}
 
-	return client, nil
-}
+// 	return client, nil
+// }
 
 // 发送请求
 func sendRequest(client *Client, prompt string) (string, error) {
@@ -361,9 +356,9 @@ func sendStreamRequest(client *Client, prompt string) error {
 
 // GetAIResponse 获取 AI 响应
 func GetAIResponse(prompt string) (string, string, string, error) {
-	if err := loadConfig(); err != nil {
-		log.Printf("Error: %v\n", err)
-		return "", "", "", err
+	// 检查 Providers 是否为空
+	if len(config.AppConfig.Models.Providers) == 0 {
+		log.Fatalf("%s\n", i18n.T("no_providers_found"))
 	}
 
 	// 选择供应商和模型
@@ -373,27 +368,36 @@ func GetAIResponse(prompt string) (string, string, string, error) {
 	}
 
 	// 创建 AI 客户端
-	client, err := createClient(provider, model)
+	client, err := NewClient(
+		provider.APIKey,
+		WithModel(model.ID),
+		WithBaseURL(provider.BaseURL),
+		WithEnableContext(),
+		WithInitialRole(GenericRoleDescCN),
+	)
 	if err != nil {
 		return "", "", "", err
 	}
 
 	// 发送请求
-	content, err := client.Send(context.Background(), prompt)
+	message, err := client.Send(context.Background(), prompt)
 	if err != nil {
-		log.Printf("Error: %v\n", err)
-
-		// 如果请求失败且启用了故障转移，尝试其他供应商
+		log.Printf(i18n.T("request_failed_with_provider")+" %s \n"+i18n.T("Error")+": %v", provider.Name, err)
+		// 如果请求失败且启用了故障转移，尝试其他提供商
 		if config.AppConfig.Models.Failover {
-			content, err = failoverToOtherProviders(prompt, provider)
+			otherProvider, otherModel, content, err := providersFailover(prompt, provider)
 			if err != nil || content == "" {
 				return "", "", "", err
+			} else {
+				provider = otherProvider
+				model = otherModel
+				message = content
 			}
 		} else {
 			return "", "", "", err
 		}
 	}
 
-	log.Printf("Response: %s\n", content)
-	return content, provider.Name, model.ID, nil
+	log.Printf(i18n.T("response_from_provider")+" %s \n"+i18n.T("Model")+": %s \n"+i18n.T("Response")+": %s", provider.Name, model.ID, message)
+	return message, provider.Name, model.ID, nil
 }

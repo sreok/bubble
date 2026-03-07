@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bubble/internal/i18n"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,28 +13,35 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ModelConfig 模型配置结构体
 type ModelConfig struct {
-	ID     string   `yaml:"id"`
-	Input  []string `yaml:"input"`
-	Output []string `yaml:"output"`
+	ID     string   `yaml:"id"`     // 模型ID
+	Input  []string `yaml:"input"`  // 支持的输入类型，如text、image等
+	Output []string `yaml:"output"` // 支持的输出类型，如text等
 }
 
+// ProviderConfig 提供商配置结构体
 type ProviderConfig struct {
-	Name     string        `yaml:"name"`
-	Enable   bool          `yaml:"enable"`
-	Failover bool          `yaml:"failover"`
-	Primary  string        `yaml:"primary"`
-	Models   []ModelConfig `yaml:"models"`
-	APIKey   string        `yaml:"api_key"`
-	BaseURL  string        `yaml:"base_url"`
+	Name     string        `yaml:"name"`     // 提供商名称
+	Enable   bool          `yaml:"enable"`   // 是否启用
+	Failover bool          `yaml:"failover"` // 是否参与故障转移
+	Default  string        `yaml:"default"`  // 默认模型
+	Models   []ModelConfig `yaml:"models"`   // 支持的模型列表
+	APIKey   string        `yaml:"api_key"`  // API密钥
+	BaseURL  string        `yaml:"base_url"` // API基础URL
 }
 
+// ModelsConfig 模型相关配置结构体
+type ModelsConfig struct {
+	Failover  bool             `yaml:"failover"`  // 是否启用故障转移
+	Default   string           `yaml:"default"`   // 默认提供商
+	Providers []ProviderConfig `yaml:"providers"` // 提供商列表
+}
+
+// Config 主配置结构体
 type Config struct {
-	Models struct {
-		Failover  bool             `yaml:"failover"`
-		Primary   string           `yaml:"primary"`
-		Providers []ProviderConfig `yaml:"providers"`
-	} `yaml:"models"`
+	Language string       `yaml:"language"` // 语言设置，支持 en 和 zh
+	Models   ModelsConfig `yaml:"models"`   // 模型配置
 }
 
 var (
@@ -47,7 +55,7 @@ var (
 func init() {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		log.Printf("Failed to get user home directory: %v\n", err)
+		log.Printf(i18n.T("config_get_home_dir_failed"), err)
 		return
 	}
 	configPath = filepath.Join(homeDir, ".bubble", "config.yaml")
@@ -63,37 +71,49 @@ func LoadConfig() error {
 	if os.IsNotExist(err) {
 		// 如果配置文件不存在，创建最小配置文件
 		if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
-			return fmt.Errorf("failed to create config directory: %w", err)
+			return fmt.Errorf(i18n.T("config_create_dir_failed"), err)
 		}
 		// 创建最小配置文件
 		defaultConfig := Config{
-			Models: struct {
-				Failover  bool             `yaml:"failover"`
-				Primary   string           `yaml:"primary"`
-				Providers []ProviderConfig `yaml:"providers"`
-			}{
+			Language: "en", // 默认语言为英语
+			Models: ModelsConfig{
 				Failover: true,
-				Primary:  "iflow",
+				Default:  "chatgpt",
 				Providers: []ProviderConfig{
-					{Name: "custom", Enable: true, Failover: true, Primary: "qwen3.5:9b", Models: []ModelConfig{
-						{ID: "qwen3.5:9b", Input: []string{"text", "image"}, Output: []string{"text"}},
-						{ID: "qwen3:8b", Input: []string{"text", "image"}, Output: []string{"text"}},
-					}},
-					{Name: "iflow", Enable: true, Failover: true, Primary: "qwen3-max", Models: []ModelConfig{
-						{ID: "qwen3-max", Input: []string{"text"}, Output: []string{"text"}},
-						{ID: "qwen3-coder-plus", Input: []string{"text"}, Output: []string{"text"}},
-						{ID: "kimi-k2-0905", Input: []string{"text"}, Output: []string{"text"}},
-					}},
+					{
+						Name:     "chatgpt",
+						Enable:   true,
+						APIKey:   "sk-1234567890abcdef1234567890abcdef",
+						BaseURL:  "https://api.openai.com/v1",
+						Failover: true,
+						Default:  "gpt-3.5-turbo",
+						Models: []ModelConfig{
+							{ID: "gpt-3.5-turbo", Input: []string{"text", "image"}, Output: []string{"text"}},
+							{ID: "gpt-4", Input: []string{"text", "image"}, Output: []string{"text"}},
+						},
+					},
+					{
+						Name:     "deepseek",
+						Enable:   true,
+						APIKey:   "sk-1234567890abcdef1234567890abcdef",
+						BaseURL:  "https://api.deepseek.cn/v1",
+						Failover: true,
+						Default:  "deepseek-r1",
+						Models: []ModelConfig{
+							{ID: "deepseek-r1", Input: []string{"text"}, Output: []string{"text"}},
+							{ID: "deepseek-coder-plus", Input: []string{"text"}, Output: []string{"text"}},
+						},
+					},
 				},
 			},
 		}
 		// 写入配置文件
 		data, err := yaml.Marshal(defaultConfig)
 		if err != nil {
-			return fmt.Errorf("failed to marshal default config: %w", err)
+			return fmt.Errorf(i18n.T("config_unmarshal_failed"), err)
 		}
 		if err := os.WriteFile(configPath, data, 0644); err != nil {
-			return fmt.Errorf("failed to write config file: %w", err)
+			return fmt.Errorf(i18n.T("config_write_failed"), err)
 		}
 		// 设置 AppConfig 为默认配置
 		AppConfig = defaultConfig
@@ -104,18 +124,26 @@ func LoadConfig() error {
 	// 读取配置文件
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		log.Printf("Failed to read config file: %v\n", err)
-		return fmt.Errorf("failed to read config file: %w", err)
+		log.Printf(i18n.T("config_read_failed"), configPath, err)
+		return fmt.Errorf(i18n.T("config_read_failed"), err)
 	}
 
 	// 解析配置文件
 	if err := yaml.Unmarshal(data, &AppConfig); err != nil {
-		log.Printf("Failed to unmarshal config file: %v\n", err)
-		return fmt.Errorf("failed to unmarshal config file: %w", err)
+		log.Printf(i18n.T("config_unmarshal_failed"), configPath, err)
+		return fmt.Errorf(i18n.T("config_unmarshal_failed"), err)
 	}
 
 	// 更新最后修改时间
 	lastModified = fileInfo.ModTime()
+
+	// 设置语言
+	if AppConfig.Language != "" {
+		i18n.SetLanguage(i18n.Language(AppConfig.Language))
+	} else {
+		i18n.SetLanguage(i18n.English)
+	}
+
 	return nil
 }
 
@@ -128,14 +156,17 @@ func ReloadConfig() error {
 }
 
 // CheckAndReload 检查配置文件是否变化并重新加载
-func CheckAndReload() error {
+// 返回值：
+// - error: 错误信息
+// - bool: 配置文件是否被修改
+func CheckAndReload() (error, bool) {
 	// 先获取文件信息，不持有锁
 	fileInfo, err := os.Stat(configPath)
 	if os.IsNotExist(err) {
 		// 配置文件不存在，不需要重新加载
-		return nil
+		return nil, false
 	} else if err != nil {
-		return fmt.Errorf("failed to stat config file: %w", err)
+		return fmt.Errorf(i18n.T("config_stat_failed"), err), false
 	}
 
 	// 检查文件是否被修改
@@ -144,12 +175,41 @@ func CheckAndReload() error {
 	mu.RUnlock()
 
 	if modified {
-		log.Printf("Config file %s has been modified, reloading...\n", configPath)
-		return LoadConfig()
+		log.Printf(i18n.T("config_modified_reload")+": %s", configPath)
+		err := LoadConfig()
+		return err, true
 	}
 
-	return nil
+	return nil, false
 }
+
+// ValidateConfig 验证配置的有效性
+// func ValidateConfig() error {
+// 	// 检查是否有启用的模型提供商
+// 	enabledProviders := 0
+// 	for _, provider := range AppConfig.Models.Providers {
+// 		if provider.Enable {
+// 			enabledProviders++
+// 		}
+// 	}
+// 	if enabledProviders == 0 {
+// 		return fmt.Errorf(i18n.T("no_enabled_providers_found"))
+// 	}
+
+// 	// 检查默认模型提供商是否存在且启用
+// 	defaultProviderFound := false
+// 	for _, provider := range AppConfig.Models.Providers {
+// 		if provider.Name == AppConfig.Models.Default && provider.Enable {
+// 			defaultProviderFound = true
+// 			break
+// 		}
+// 	}
+// 	if !defaultProviderFound {
+// 		return fmt.Errorf(i18n.T("default_provider_not_found"), AppConfig.Models.Default)
+// 	}
+
+// 	return nil
+// }
 
 // StartConfigWatcher 启动配置文件监视
 func StartConfigWatcher(interval time.Duration) {
@@ -157,8 +217,20 @@ func StartConfigWatcher(interval time.Duration) {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		if err := CheckAndReload(); err != nil {
-			log.Printf("Failed to reload config: %v\n", err)
+		err, _ := CheckAndReload()
+		if err != nil {
+			log.Printf(i18n.T("config_reload_failed"), err)
 		}
+		// else {
+		// 	// 验证配置有效性
+		// 	if err := ValidateConfig(); err != nil {
+		// 		log.Printf(i18n.T("config_validation_failed"), err)
+		// 	}
+		// }
 	}
+}
+
+// GetConfigPath 获取配置文件路径
+func GetConfigPath() string {
+	return configPath
 }

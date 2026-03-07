@@ -1,12 +1,20 @@
 package api
 
 import (
-	"bubble/internal/config"
+	"bubble/internal/i18n"
 	"bubble/pkg/aicli"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
+
+// ChatResponse 聊天响应结构体
+type ChatResponse struct {
+	Message  string `json:"message"`
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+	Status   string `json:"status"`
+}
 
 // Chat 聊天接口
 func Chat(c *gin.Context) {
@@ -15,39 +23,28 @@ func Chat(c *gin.Context) {
 		Prompt string `json:"prompt"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
-		return
-	}
-
-	// 检查配置文件是否变化并重新加载
-	if err := config.CheckAndReload(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to reload config",
-		})
-		return
-	}
-
-	// 检查 Providers 是否为空
-	if len(config.AppConfig.Models.Providers) == 0 {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "No providers found in config",
+		c.JSON(http.StatusBadRequest, ChatResponse{
+			Message: i18n.T("invalid_request_payload"),
+			Status:  "error",
 		})
 		return
 	}
 
 	// 获取 AI 响应
-	content, provider, model, err := aicli.GetAIResponse(req.Prompt)
+	message, provider, model, err := aicli.GetAIResponse(req.Prompt)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get AI response",
+		c.JSON(http.StatusInternalServerError, ChatResponse{
+			Message: i18n.T("failed_to_get_message") + ": " + err.Error(),
+			Status:  "error",
 		})
 		return
 	}
 
 	// 返回响应
-	c.JSON(http.StatusOK, gin.H{
-		"message":  content,
-		"provider": provider,
-		"model":    model,
+	c.JSON(http.StatusOK, ChatResponse{
+		Message:  message,
+		Provider: provider,
+		Model:    model,
+		Status:   "success",
 	})
 }
