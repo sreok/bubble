@@ -100,12 +100,6 @@ func WithMaxContextTokens(tokens int) ClientOption {
 	}
 }
 
-// ContextMessage 上下文消息
-type ContextMessage struct {
-	Role    string `json:"role"` // system, user, assistant, etc.
-	Content string `json:"content"`
-}
-
 // WithInitialContextMessages 设置初始上下文消息
 func WithInitialContextMessages(messages ...*ContextMessage) ClientOption {
 	return func(c *Client) {

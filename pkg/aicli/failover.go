@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 )
 
 var (
@@ -51,10 +52,10 @@ func SelectAvailableProviderAndModel() (*config.ProviderConfig, *config.ModelCon
 				}
 			}
 		}
+		return lastSuccessfulProvider, lastSuccessfulModel, nil
 	}
 
 	// 2. 检查默认提供商
-	log.Println(i18n.T("checking_provider"))
 	defaultProviderName := config.AppConfig.Models.Default
 	if defaultProviderName != "" && !contains(unavailableProviders, defaultProviderName) {
 		// 查找默认提供商是否存在且启用
@@ -182,13 +183,17 @@ func tryOtherModels(provider *config.ProviderConfig) (*config.ModelConfig, error
 // tryModel 尝试使用模型发送测试请求
 func tryModel(model *config.ModelConfig, provider *config.ProviderConfig) (*config.ModelConfig, error) {
 	log.Printf("%s %s", i18n.T("checking_model"), model.ID)
+
+	// 创建带超时的上下文，设置较短的超时时间
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
 	// 尝试创建客户端
 	client, err := NewClient(
 		provider.APIKey,
 		WithModel(model.ID),
 		WithBaseURL(provider.BaseURL),
-		WithEnableContext(),
-		WithInitialRole(GenericRoleDescCN),
+		WithMaxTokens(10), // 减少响应长度，加快测试速度
 	)
 	if err != nil {
 		log.Printf("%s %s %s", i18n.T("failed_to_create_client"), provider.Name, err)
@@ -197,8 +202,8 @@ func tryModel(model *config.ModelConfig, provider *config.ProviderConfig) (*conf
 		return nil, err
 	}
 
-	// 尝试发送请求
-	_, err = client.Send(context.Background(), "test")
+	// 尝试发送请求，使用更短的测试消息
+	_, err = client.Send(timeoutCtx, "hi")
 	if err != nil {
 		log.Printf("%s %s %s", i18n.T("request_failed_with_provider"), provider.Name, err)
 		// 将模型添加到不可用列表

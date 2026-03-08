@@ -13,37 +13,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ModelConfig 模型配置结构体
-type ModelConfig struct {
-	ID     string   `yaml:"id"`     // 模型ID
-	Input  []string `yaml:"input"`  // 支持的输入类型，如text、image等
-	Output []string `yaml:"output"` // 支持的输出类型，如text等
-}
-
-// ProviderConfig 提供商配置结构体
-type ProviderConfig struct {
-	Name     string        `yaml:"name"`     // 提供商名称
-	Enable   bool          `yaml:"enable"`   // 是否启用
-	Failover bool          `yaml:"failover"` // 是否参与故障转移
-	Default  string        `yaml:"default"`  // 默认模型
-	Models   []ModelConfig `yaml:"models"`   // 支持的模型列表
-	APIKey   string        `yaml:"api_key"`  // API密钥
-	BaseURL  string        `yaml:"base_url"` // API基础URL
-}
-
-// ModelsConfig 模型相关配置结构体
-type ModelsConfig struct {
-	Failover  bool             `yaml:"failover"`  // 是否启用故障转移
-	Default   string           `yaml:"default"`   // 默认提供商
-	Providers []ProviderConfig `yaml:"providers"` // 提供商列表
-}
-
-// Config 主配置结构体
-type Config struct {
-	Language string       `yaml:"language"` // 语言设置，支持 en 和 zh
-	Models   ModelsConfig `yaml:"models"`   // 模型配置
-}
-
 var (
 	AppConfig    Config
 	configPath   string
@@ -59,6 +28,10 @@ func init() {
 		return
 	}
 	configPath = filepath.Join(homeDir, ".bubble", "config.yaml")
+	// 设置默认工作空间
+	if AppConfig.Agent.Workspace == "" {
+		AppConfig.Agent.Workspace = filepath.Join(homeDir, ".bubble", "workspace")
+	}
 }
 
 // LoadConfig 加载配置文件

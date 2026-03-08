@@ -37,17 +37,16 @@ func main() {
 	}()
 
 	r := gin.Default()
-	r.GET("/", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "Hello, world!",
-		})
-	})
 
 	apiGroup := r.Group("/api")
 	{
 		apiGroup.GET("/models", api.GetModels)
-		apiGroup.POST("/chat", api.Chat)
-		apiGroup.POST("/messages", api.SendMessageHandler)
+		// apiGroup.POST("/chat", api.Chat)
+		chatGroup := apiGroup.Group("/chat")
+		{
+			// apiGroup.POST("/chat", api.SendMessageHandler)
+			chatGroup.POST("/message", api.SendMessageHandler)
+		}
 		// 设置路由
 		sessionGroup := apiGroup.Group("/sessions")
 		{

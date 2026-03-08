@@ -3,6 +3,7 @@ package aicli
 import (
 	"bubble/internal/config"
 	"bubble/internal/i18n"
+	"bubble/internal/tools/web_search"
 	"context"
 	"errors"
 	"fmt"
@@ -108,6 +109,47 @@ func (c *Client) Send(ctx context.Context, prompt string, files ...string) (stri
 	return replyContent, nil
 }
 
+// EnhancedSend 增强 AI 响应，添加搜索能力
+func (c *Client) EnhancedSend(ctx context.Context, prompt string, files ...string) (string, error) {
+	// 检查是否需要搜索
+	if web_search.ContainsSearchKeywords(prompt) && web_search.IsTavilyEnabled() {
+		// 从配置中获取 Tavily API key
+		tavilyAPIKey := config.AppConfig.Tools.WebSearch.Tavily.APIKey
+		if tavilyAPIKey == "" {
+			log.Println("Tavily API key not configured")
+			// 没有配置 API key，直接使用普通发送
+			return c.Send(ctx, prompt, files...)
+		}
+
+		// 创建 Tavily 客户端
+		tavilyClient := web_search.NewTavilyClient(tavilyAPIKey)
+
+		// 搜索相关信息
+		searchResult, err := tavilyClient.Search(ctx, prompt)
+		if err != nil {
+			log.Printf("Failed to search with Tavily: %v", err)
+			// 搜索失败，直接使用普通发送
+			return c.Send(ctx, prompt, files...)
+		}
+
+		// 增强 prompt
+		enhancedPrompt := fmt.Sprintf(`
+你是一个有帮助的助手，能够以清晰、友好的方式回答用户的问题。
+
+基于以下搜索结果，请回答用户的问题：
+%s
+
+用户的问题：%s
+`, searchResult, prompt)
+
+		// 使用增强后的 prompt 发送
+		return c.Send(ctx, enhancedPrompt, files...)
+	}
+
+	// 不需要搜索，直接使用普通发送
+	return c.Send(ctx, prompt, files...)
+}
+
 // SendStream 发送提示词到聊天模型并返回响应流
 func (c *Client) SendStream(ctx context.Context, prompt string, files ...string) *StreamReply {
 	response := &StreamReply{Content: make(chan string), Err: error(nil)}
@@ -201,27 +243,6 @@ func (c *Client) ListContextMessages() []*ContextMessage {
 func (c *Client) RefreshContext() {
 	if len(c.contextMessages) > 0 {
 		c.contextMessages = []openai.ChatCompletionMessage{}
-	}
-}
-
-// ModifyInitialRole 修改初始角色描述
-func (c *Client) ModifyInitialRole(roleDesc string) {
-	if roleDesc == "" {
-		return
-	}
-	message := openai.ChatCompletionMessage{
-		Role:    openai.ChatMessageRoleSystem,
-		Content: roleDesc,
-	}
-
-	if len(c.contextMessages) == 0 {
-		c.contextMessages = []openai.ChatCompletionMessage{message}
-	} else {
-		if c.roleDesc == c.contextMessages[0].Content {
-			c.contextMessages[0].Content = roleDesc
-		} else {
-			c.contextMessages = append([]openai.ChatCompletionMessage{message}, c.contextMessages...)
-		}
 	}
 }
 
@@ -331,46 +352,4 @@ func (c *Client) uploadFiles(ctx context.Context, files []string) ([]string, err
 		fileIDs = append(fileIDs, fileResp.ID)
 	}
 	return fileIDs, nil
-}
-
-// GetAIResponse 获取 AI 响应
-func GetAIResponse(prompt string) (string, string, string, error) {
-	// 检查 Providers 是否为空
-	if len(config.AppConfig.Models.Providers) == 0 {
-		log.Fatalf("%s\n", i18n.T("no_providers_found"))
-	}
-
-	// 选择供应商和模型
-	provider, model, err := SelectAvailableProviderAndModel()
-	if err != nil {
-		return "", "", "", err
-	}
-
-	// 创建 AI 客户端
-	client, err := NewClient(
-		provider.APIKey,
-		WithModel(model.ID),
-		WithBaseURL(provider.BaseURL),
-		WithEnableContext(),
-		WithInitialRole(GenericRoleDescCN),
-	)
-	if err != nil {
-		return "", "", "", err
-	}
-
-	// 发送请求
-	message, err := client.Send(context.Background(), prompt)
-
-	// 发送流式请求
-	// stream := client.SendStream(context.Background(), prompt)
-	// for chunk := range stream.Content {
-	// 	fmt.Print(chunk)
-	// }
-	// fmt.Println()
-	// if stream.Err != nil {
-	// 	return "", "", "", fmt.Errorf("error in streaming: %w", stream.Err)
-	// }
-
-	log.Printf(i18n.T("Provider")+": %s "+i18n.T("Model")+": %s "+i18n.T("Response")+": %s", provider.Name, model.ID, message)
-	return message, provider.Name, model.ID, nil
 }
