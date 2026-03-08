@@ -15,15 +15,17 @@ import (
 
 // 定义 Client 结构体
 type Client struct {
-	apiKey          string
-	maxTokens       int
-	ModelName       string
-	Cli             *openai.Client
-	temperature     float32
-	roleDesc        string
-	enableContext   bool
-	contextMessages []openai.ChatCompletionMessage
-	baseURL         string
+	apiKey           string
+	maxTokens        int
+	ModelName        string
+	Cli              *openai.Client
+	temperature      float32
+	roleDesc         string
+	enableContext    bool
+	contextMessages  []openai.ChatCompletionMessage
+	baseURL          string
+	maxContextSize   int // 最大上下文消息数
+	maxContextTokens int // 最大上下文 token 数
 }
 
 // 加载配置文件
@@ -226,7 +228,8 @@ func (c *Client) ModifyInitialRole(roleDesc string) {
 // appendAssistantContext 将助手上下文添加到上下文消息中
 func (c *Client) appendAssistantContext(prompt string, replyContent string) {
 	if c.enableContext && replyContent != "" {
-		c.contextMessages = append(c.contextMessages, []openai.ChatCompletionMessage{
+		// 添加新的上下文消息
+		newMessages := []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleUser,
 				Content: prompt,
@@ -235,8 +238,43 @@ func (c *Client) appendAssistantContext(prompt string, replyContent string) {
 				Role:    openai.ChatMessageRoleAssistant,
 				Content: replyContent,
 			},
-		}...)
+		}
+		c.contextMessages = append(c.contextMessages, newMessages...)
+
+		// 限制上下文消息数量
+		c.trimContext()
 	}
+}
+
+// trimContext 修剪上下文消息，确保不超过限制
+func (c *Client) trimContext() {
+	// 1. 限制消息数量
+	if c.maxContextSize > 0 && len(c.contextMessages) > c.maxContextSize {
+		// 保留系统消息，只修剪用户和助手消息
+		var systemMessages []openai.ChatCompletionMessage
+		var userAssistantMessages []openai.ChatCompletionMessage
+
+		for _, msg := range c.contextMessages {
+			if msg.Role == openai.ChatMessageRoleSystem {
+				systemMessages = append(systemMessages, msg)
+			} else {
+				userAssistantMessages = append(userAssistantMessages, msg)
+			}
+		}
+
+		// 计算需要保留的用户助手消息数量
+		retainCount := c.maxContextSize - len(systemMessages)
+		if retainCount > 0 && len(userAssistantMessages) > retainCount {
+			// 保留最新的消息
+			userAssistantMessages = userAssistantMessages[len(userAssistantMessages)-retainCount:]
+		}
+
+		// 重新组合消息
+		c.contextMessages = append(systemMessages, userAssistantMessages...)
+	}
+
+	// 2. 限制 token 数量（简单实现，实际应该计算 token 数）
+	// 这里可以使用 tiktoken 库来计算 token 数
 }
 
 // setMessages 设置聊天模型的消息
@@ -295,65 +333,6 @@ func (c *Client) uploadFiles(ctx context.Context, files []string) ([]string, err
 	return fileIDs, nil
 }
 
-// 创建 AI 客户端
-// func createClient(provider *config.ProviderConfig, model *config.ModelConfig) (*Client, error) {
-// 	var client *Client
-// 	var err error
-
-// 	if provider.BaseURL != "" {
-// 		// 使用自定义 base URL
-// 		client, err = NewClient(
-// 			provider.APIKey,
-// 			WithBaseURL(provider.BaseURL),
-// 			WithModel(model.ID),
-// 			WithEnableContext(),
-// 			WithInitialRole(GenericRoleDescCN),
-// 		)
-// 	} else {
-// 		// 使用默认 base URL
-// 		client, err = NewClient(
-// 			provider.APIKey,
-// 			WithModel(model.ID),
-// 			WithEnableContext(),
-// 			WithInitialRole(GenericRoleDescCN),
-// 		)
-// 	}
-
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to create AI client: %w", err)
-// 	}
-
-// 	return client, nil
-// }
-
-// 发送请求
-func sendRequest(client *Client, prompt string) (string, error) {
-	ctx := context.Background()
-	response, err := client.Send(ctx, prompt)
-	if err != nil {
-		return "", fmt.Errorf("failed to send request: %w", err)
-	}
-
-	log.Printf("Response: %s\n", response)
-	return response, nil
-}
-
-// 发送流式请求
-func sendStreamRequest(client *Client, prompt string) error {
-	ctx := context.Background()
-	stream := client.SendStream(ctx, prompt)
-
-	for chunk := range stream.Content {
-		log.Print(chunk)
-	}
-
-	if stream.Err != nil {
-		return fmt.Errorf("error in streaming: %w", stream.Err)
-	}
-
-	return nil
-}
-
 // GetAIResponse 获取 AI 响应
 func GetAIResponse(prompt string) (string, string, string, error) {
 	// 检查 Providers 是否为空
@@ -362,7 +341,7 @@ func GetAIResponse(prompt string) (string, string, string, error) {
 	}
 
 	// 选择供应商和模型
-	provider, model, err := selectProviderAndModel()
+	provider, model, err := SelectAvailableProviderAndModel()
 	if err != nil {
 		return "", "", "", err
 	}
@@ -381,23 +360,17 @@ func GetAIResponse(prompt string) (string, string, string, error) {
 
 	// 发送请求
 	message, err := client.Send(context.Background(), prompt)
-	if err != nil {
-		log.Printf(i18n.T("request_failed_with_provider")+" %s \n"+i18n.T("Error")+": %v", provider.Name, err)
-		// 如果请求失败且启用了故障转移，尝试其他提供商
-		if config.AppConfig.Models.Failover {
-			otherProvider, otherModel, content, err := providersFailover(prompt, provider)
-			if err != nil || content == "" {
-				return "", "", "", err
-			} else {
-				provider = otherProvider
-				model = otherModel
-				message = content
-			}
-		} else {
-			return "", "", "", err
-		}
-	}
 
-	log.Printf(i18n.T("response_from_provider")+" %s \n"+i18n.T("Model")+": %s \n"+i18n.T("Response")+": %s", provider.Name, model.ID, message)
+	// 发送流式请求
+	// stream := client.SendStream(context.Background(), prompt)
+	// for chunk := range stream.Content {
+	// 	fmt.Print(chunk)
+	// }
+	// fmt.Println()
+	// if stream.Err != nil {
+	// 	return "", "", "", fmt.Errorf("error in streaming: %w", stream.Err)
+	// }
+
+	log.Printf(i18n.T("Provider")+": %s "+i18n.T("Model")+": %s "+i18n.T("Response")+": %s", provider.Name, model.ID, message)
 	return message, provider.Name, model.ID, nil
 }

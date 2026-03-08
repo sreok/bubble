@@ -31,7 +31,7 @@ func main() {
 				log.Printf(i18n.T("config_reload_failed"), err)
 			} else if modified {
 				// 配置文件重载成功，重置不可用列表
-				aicli.ResetUnavailableLists()
+				aicli.RefreshAvailableLists()
 			}
 		}
 	}()
@@ -47,6 +47,16 @@ func main() {
 	{
 		apiGroup.GET("/models", api.GetModels)
 		apiGroup.POST("/chat", api.Chat)
+		apiGroup.POST("/messages", api.SendMessageHandler)
+		// 设置路由
+		sessionGroup := apiGroup.Group("/sessions")
+		{
+			sessionGroup.POST("", api.CreateSessionHandler)
+			sessionGroup.POST("/list", api.ListSessionsHandler)
+			sessionGroup.GET("/context", api.GetContextHandler)
+			sessionGroup.DELETE("", api.DeleteSessionHandler)
+		}
 	}
+
 	r.Run(":8080")
 }

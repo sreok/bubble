@@ -23,9 +23,11 @@ type ClientOption func(*Client)
 
 func defaultClientOptions() *Client {
 	return &Client{
-		enableContext: false, // default is false
-		maxTokens:     defaultMaxTokens,
-		temperature:   0.0,
+		enableContext:    false, // default is false
+		maxTokens:        defaultMaxTokens,
+		temperature:      0.0,
+		maxContextSize:   10,   // 默认最大上下文消息数
+		maxContextTokens: 4096, // 默认最大上下文 token 数
 	}
 }
 
@@ -77,6 +79,24 @@ func WithEnableContext() ClientOption {
 func WithBaseURL(baseURL string) ClientOption {
 	return func(c *Client) {
 		c.baseURL = baseURL
+	}
+}
+
+// WithMaxContextSize 设置最大上下文消息数
+func WithMaxContextSize(size int) ClientOption {
+	return func(c *Client) {
+		if size > 0 {
+			c.maxContextSize = size
+		}
+	}
+}
+
+// WithMaxContextTokens 设置最大上下文 token 数
+func WithMaxContextTokens(tokens int) ClientOption {
+	return func(c *Client) {
+		if tokens > 0 {
+			c.maxContextTokens = tokens
+		}
 	}
 }
 
