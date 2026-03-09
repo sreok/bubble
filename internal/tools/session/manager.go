@@ -4,7 +4,6 @@ import (
 	"bubble/pkg/aicli"
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/google/uuid"
@@ -42,20 +41,22 @@ func GetSessionManager() *SessionManager {
 func (sm *SessionManager) CreateSession() (string, error) {
 
 	// 从配置中获取默认提供商
-	provider, _, err := aicli.SelectAvailableProviderAndModel()
+	provider, model, err := aicli.SelectAvailableProviderAndModel()
 	if err != nil {
 		return "", err
 	}
-	// 从默认提供商获取 API 密钥和基础 URL
+
 	apiKey := provider.APIKey
-	fmt.Println(apiKey)
 	baseURL := provider.BaseURL
-	fmt.Println(baseURL)
+	modelName := model.ID
 
 	// 创建客户端选项
 	var opts []aicli.ClientOption
 	if baseURL != "" {
 		opts = append(opts, aicli.WithBaseURL(baseURL))
+	}
+	if modelName != "" {
+		opts = append(opts, aicli.WithModel(modelName))
 	}
 
 	// 创建客户端

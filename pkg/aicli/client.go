@@ -57,6 +57,8 @@ const (
 	defaultTemperature   = 0.7
 	defaultContextSize   = 10
 	defaultContextTokens = 8192
+	defaultBaseURL       = ""
+	defaultAPIType       = "fake-api"
 )
 
 func defaultClientOptions() *Client {
@@ -92,6 +94,11 @@ func NewClient(apiKey string, opts ...ClientOption) (*Client, error) {
 	c.apiKey = apiKey
 
 	config := openai.DefaultConfig(apiKey)
+
+	// 设置自定义 base URL
+	if c.baseURL != "" {
+		config.BaseURL = c.baseURL
+	}
 
 	c.Cli = openai.NewClientWithConfig(config)
 
