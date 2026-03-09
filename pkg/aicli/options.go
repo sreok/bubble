@@ -4,39 +4,6 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
-// openai 模型名称
-const (
-	ModelGPT3Dot5Turbo = openai.GPT3Dot5Turbo
-	ModelGPT4          = openai.GPT4
-	ModelGPT4Turbo     = openai.GPT4Turbo
-	ModelGPT4o         = openai.GPT4o // default
-	ModelGPT4oMini     = openai.GPT4oMini
-	ModelO1Mini        = openai.O1Mini
-	ModelO1Preview     = openai.O1Preview
-
-	DefaultModel     = ModelGPT4o
-	defaultMaxTokens = 8192
-)
-
-// ClientOption 客户端选项
-type ClientOption func(*Client)
-
-func defaultClientOptions() *Client {
-	return &Client{
-		enableContext:    false, // default is false
-		maxTokens:        defaultMaxTokens,
-		temperature:      0.0,
-		maxContextSize:   10,   // 默认最大上下文消息数
-		maxContextTokens: 4096, // 默认最大上下文 token 数
-	}
-}
-
-func (c *Client) apply(opts ...ClientOption) {
-	for _, opt := range opts {
-		opt(c)
-	}
-}
-
 // WithMaxTokens 设置最大令牌数
 func WithMaxTokens(maxTokens int) ClientOption {
 	return func(c *Client) {

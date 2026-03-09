@@ -4,6 +4,7 @@ import (
 	"bubble/pkg/aicli"
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/google/uuid"
@@ -11,10 +12,8 @@ import (
 
 // Session 表示一个会话，包含一个客户端实例
 type Session struct {
-	ID       string
-	Client   *aicli.Client
-	Provider string
-	Model    string
+	ID     string
+	Client *aicli.Client
 }
 
 // SessionManager 管理多个会话
@@ -40,10 +39,23 @@ func GetSessionManager() *SessionManager {
 }
 
 // CreateSession 创建一个新的会话
-func (sm *SessionManager) CreateSession(apiKey string, provider string, model string, opts ...aicli.ClientOption) (string, error) {
+func (sm *SessionManager) CreateSession() (string, error) {
 
-	if apiKey == "" {
-		return "", errors.New("API key cannot be empty")
+	// 从配置中获取默认提供商
+	provider, _, err := aicli.SelectAvailableProviderAndModel()
+	if err != nil {
+		return "", err
+	}
+	// 从默认提供商获取 API 密钥和基础 URL
+	apiKey := provider.APIKey
+	fmt.Println(apiKey)
+	baseURL := provider.BaseURL
+	fmt.Println(baseURL)
+
+	// 创建客户端选项
+	var opts []aicli.ClientOption
+	if baseURL != "" {
+		opts = append(opts, aicli.WithBaseURL(baseURL))
 	}
 
 	// 创建客户端
@@ -58,10 +70,8 @@ func (sm *SessionManager) CreateSession(apiKey string, provider string, model st
 	// 添加到会话管理器
 	sm.mu.Lock()
 	sm.sessions[sessionID] = &Session{
-		ID:       sessionID,
-		Client:   client,
-		Provider: provider,
-		Model:    model,
+		ID:     sessionID,
+		Client: client,
 	}
 	sm.mu.Unlock()
 
@@ -151,14 +161,4 @@ func (sm *SessionManager) RefreshContext(sessionID string) error {
 
 	session.Client.RefreshContext()
 	return nil
-}
-
-// GetSessionInfo 获取会话信息
-func (sm *SessionManager) GetSessionInfo(sessionID string) (string, string, error) {
-	session, err := sm.GetSession(sessionID)
-	if err != nil {
-		return "", "", err
-	}
-
-	return session.Provider, session.Model, nil
 }

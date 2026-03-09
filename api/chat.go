@@ -1,8 +1,6 @@
 package api
 
 import (
-	"bubble/internal/config"
-	"bubble/pkg/aicli"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -32,23 +30,8 @@ func SendMessageHandler(c *gin.Context) {
 
 	// 如果没有提供 session_id，自动创建一个新会话
 	if req.SessionID == "" {
-		// 选择提供商和模型
-		provider, model, err := aicli.SelectAvailableProviderAndModel()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to select provider and model: " + err.Error()})
-			return
-		}
-
 		// 创建会话
-		sessionID, err := manager.CreateSession(
-			provider.APIKey,
-			provider.Name,
-			model.ID,
-			aicli.WithModel(model.ID),
-			aicli.WithBaseURL(provider.BaseURL),
-			aicli.WithEnableContext(),
-			aicli.WithInitialRole(config.GenericRoleDescCN),
-		)
+		sessionID, err := manager.CreateSession()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session: " + err.Error()})
 			return
@@ -64,19 +47,10 @@ func SendMessageHandler(c *gin.Context) {
 		return
 	}
 
-	// 获取会话信息
-	provider, model, err := manager.GetSessionInfo(req.SessionID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get session info: " + err.Error()})
-		return
-	}
-
 	// 返回响应
 	resp := SendMessageResponse{
 		Message:   response,
 		SessionID: req.SessionID,
-		Provider:  provider,
-		Model:     model,
 		Status:    "success",
 	}
 

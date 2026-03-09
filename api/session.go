@@ -1,10 +1,8 @@
 package api
 
 import (
-	"bubble/internal/config"
 	"bubble/internal/tools/session"
 	"bubble/pkg/aicli"
-	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -39,42 +37,24 @@ var manager *session.SessionManager
 
 func init() {
 	manager = session.GetSessionManager()
-	if err := config.LoadConfig(); err != nil {
-		log.Fatalf("Failed to load config: %v", err)
-	}
 }
 
 // CreateSessionHandler 创建会话处理函数
 func CreateSessionHandler(c *gin.Context) {
-	// 选择提供商和模型
-	provider, model, err := aicli.SelectAvailableProviderAndModel()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to select provider and model: " + err.Error()})
-		return
-	}
-
 	// 创建会话
-	sessionID, err := manager.CreateSession(
-		provider.APIKey,
-		provider.Name,
-		model.ID,
-		aicli.WithModel(model.ID),
-		aicli.WithBaseURL(provider.BaseURL),
-		aicli.WithEnableContext(),
-		aicli.WithInitialRole(config.GenericRoleDescCN),
-	)
+	sessionID, err := manager.CreateSession()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session: " + err.Error()})
 		return
 	}
 
 	// 返回响应
-	resp := CreateSessionResponse{
+	response := CreateSessionResponse{
 		SessionID: sessionID,
 		Status:    "success",
 	}
 
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, response)
 }
 
 // GetContextHandler 获取上下文处理函数
@@ -93,12 +73,12 @@ func GetContextHandler(c *gin.Context) {
 	}
 
 	// 返回响应
-	resp := GetContextResponse{
+	response := GetContextResponse{
 		ContextMessages: contextMessages,
 		Count:           len(contextMessages),
 	}
 
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, response)
 }
 
 // DeleteSessionHandler 删除会话处理函数
@@ -116,22 +96,22 @@ func DeleteSessionHandler(c *gin.Context) {
 	}
 
 	// 返回响应
-	resp := DeleteSessionResponse{
+	response := DeleteSessionResponse{
 		Status:    "success",
 		SessionID: sessionID,
 	}
 
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, response)
 }
 
 // ListSessionsHandler 列出所有会话
 func ListSessionsHandler(c *gin.Context) {
 	sessions := manager.ListSessions()
 
-	resp := ListSessionsResponse{
+	response := ListSessionsResponse{
 		Sessions: sessions,
 		Status:   "success",
 	}
 
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, response)
 }

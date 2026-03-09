@@ -2,7 +2,6 @@ package aicli
 
 import (
 	"bubble/internal/config"
-	"bubble/internal/i18n"
 	"bubble/internal/tools/web_search"
 	"context"
 	"errors"
@@ -13,6 +12,26 @@ import (
 
 	"github.com/sashabaranov/go-openai"
 )
+
+// ContextMessage 上下文消息
+type ContextMessage struct {
+	Role    string `json:"role"` // system, user, assistant, etc.
+	Content string `json:"content"`
+}
+
+// StreamReply 结构体用于表示流式响应
+type StreamReply struct {
+	Content chan string
+	Err     error // 如果为 nil 表示成功响应
+}
+
+// Assistant 接口定义了与助手交互的方法
+type Assistanter interface {
+	Send(ctx context.Context, prompt string, files ...string) (string, error)
+	RefreshContext()
+	ListModelNames(ctx context.Context) ([]string, error)
+	SendStream(ctx context.Context, prompt string, files ...string) *StreamReply
+}
 
 // 定义 Client 结构体
 type Client struct {
@@ -25,31 +44,43 @@ type Client struct {
 	enableContext    bool
 	contextMessages  []openai.ChatCompletionMessage
 	baseURL          string
-	maxContextSize   int // 最大上下文消息数
-	maxContextTokens int // 最大上下文 token 数
+	maxContextSize   int
+	maxContextTokens int
 }
 
-// 加载配置文件
-func loadConfig() error {
-	if err := config.LoadConfig(); err != nil {
-		log.Fatalf(i18n.T("failed_to_load_config")+" %v\n", err)
+// ClientOption 客户端选项
+type ClientOption func(*Client)
+
+const (
+	defaultModel         = openai.GPT4o // default
+	defaultMaxTokens     = 8192
+	defaultTemperature   = 0.7
+	defaultContextSize   = 10
+	defaultContextTokens = 8192
+)
+
+func defaultClientOptions() *Client {
+	return &Client{
+		enableContext:    false, // default is false
+		maxTokens:        defaultMaxTokens,
+		temperature:      defaultTemperature,
+		maxContextSize:   defaultContextSize, // 默认最大上下文消息数
+		maxContextTokens: defaultMaxTokens,   // 默认最大上下文 token 数
+		ModelName:        defaultModel,
 	}
-	return nil
+}
+
+func (c *Client) apply(opts ...ClientOption) {
+	for _, opt := range opts {
+		opt(c)
+	}
 }
 
 // NewClient creates a new chat client.
 func NewClient(apiKey string, opts ...ClientOption) (*Client, error) {
 
-	if apiKey == "" {
-		return nil, errors.New("API key cannot be empty")
-	}
-
 	c := defaultClientOptions()
 	c.apply(opts...)
-
-	if c.ModelName == "" {
-		c.ModelName = DefaultModel
-	}
 
 	if c.roleDesc != "" {
 		c.contextMessages = append(c.contextMessages, openai.ChatCompletionMessage{
@@ -60,14 +91,9 @@ func NewClient(apiKey string, opts ...ClientOption) (*Client, error) {
 
 	c.apiKey = apiKey
 
-	// 根据是否设置了自定义 base URL 来创建客户端
-	if c.baseURL != "" {
-		config := openai.DefaultConfig(apiKey)
-		config.BaseURL = c.baseURL
-		c.Cli = openai.NewClientWithConfig(config)
-	} else {
-		c.Cli = openai.NewClient(apiKey)
-	}
+	config := openai.DefaultConfig(apiKey)
+
+	c.Cli = openai.NewClientWithConfig(config)
 
 	return c, nil
 }

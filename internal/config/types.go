@@ -1,12 +1,5 @@
 package config
 
-// ModelConfig 模型配置结构体
-type ModelConfig struct {
-	ID     string   `yaml:"id"`     // 模型ID
-	Input  []string `yaml:"input"`  // 支持的输入类型，如text、image等
-	Output []string `yaml:"output"` // 支持的输出类型，如text等
-}
-
 // ProviderConfig 提供商配置结构体
 type ProviderConfig struct {
 	Name     string        `yaml:"name"`     // 提供商名称
@@ -25,10 +18,16 @@ type ModelsConfig struct {
 	Providers []ProviderConfig `yaml:"providers"` // 提供商列表
 }
 
-// TavilyConfig Tavily 配置结构体
-type TavilyConfig struct {
-	Enable bool   `yaml:"enable"`  // 是否启用
-	APIKey string `yaml:"api_key"` // API 密钥
+// ModelConfig 模型配置结构体
+type ModelConfig struct {
+	ID     string   `yaml:"id"`     // 模型ID
+	Input  []string `yaml:"input"`  // 支持的输入类型，如text、image等
+	Output []string `yaml:"output"` // 支持的输出类型，如text等
+}
+
+// ToolsConfig 工具配置结构体
+type ToolsConfig struct {
+	WebSearch WebSearchConfig `yaml:"web_search"` // 网络搜索配置
 }
 
 // WebSearchConfig 网络搜索配置结构体
@@ -36,9 +35,10 @@ type WebSearchConfig struct {
 	Tavily TavilyConfig `yaml:"tavily"` // Tavily 配置
 }
 
-// ToolsConfig 工具配置结构体
-type ToolsConfig struct {
-	WebSearch WebSearchConfig `yaml:"web_search"` // 网络搜索配置
+// TavilyConfig Tavily 配置结构体
+type TavilyConfig struct {
+	Enable bool   `yaml:"enable"`  // 是否启用
+	APIKey string `yaml:"api_key"` // API 密钥
 }
 
 type AgentConfig struct {

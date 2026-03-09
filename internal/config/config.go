@@ -48,7 +48,7 @@ func LoadConfig() error {
 		}
 		// 创建最小配置文件
 		defaultConfig := Config{
-			Language: "en", // 默认语言为英语
+			Language: "zh", // 默认语言为中文
 			Models: ModelsConfig{
 				Failover: true,
 				Default:  "chatgpt",
@@ -63,18 +63,6 @@ func LoadConfig() error {
 						Models: []ModelConfig{
 							{ID: "gpt-3.5-turbo", Input: []string{"text", "image"}, Output: []string{"text"}},
 							{ID: "gpt-4", Input: []string{"text", "image"}, Output: []string{"text"}},
-						},
-					},
-					{
-						Name:     "deepseek",
-						Enable:   true,
-						APIKey:   "sk-1234567890abcdef1234567890abcdef",
-						BaseURL:  "https://api.deepseek.cn/v1",
-						Failover: true,
-						Default:  "deepseek-r1",
-						Models: []ModelConfig{
-							{ID: "deepseek-r1", Input: []string{"text"}, Output: []string{"text"}},
-							{ID: "deepseek-coder-plus", Input: []string{"text"}, Output: []string{"text"}},
 						},
 					},
 				},
@@ -111,11 +99,7 @@ func LoadConfig() error {
 	lastModified = fileInfo.ModTime()
 
 	// 设置语言
-	if AppConfig.Language != "" {
-		i18n.SetLanguage(i18n.Language(AppConfig.Language))
-	} else {
-		i18n.SetLanguage(i18n.English)
-	}
+	i18n.SetLanguage(i18n.Language(AppConfig.Language))
 
 	return nil
 }
